@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Gallery Wall</title>
+<meta name="description" content="Browse 64,000 open-access artworks from the National Gallery of Art's open dataset.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.nga.gov" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;1,6..96,500&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: a gallery wall — quiet hung grid of matted works, a label rail on top, a viewing room on click */
+:root{
+  --wall:#e6e8e2; --mat:#f6f6f2; --ink:#1f2421; --muted:#5d6660; --rule:#c9cdc5; --bronze:#8a5a2b;
+  --shade:rgba(20,24,22,.92);
+  --display:"Bodoni Moda", "Didot", "Times New Roman", serif;
+  --body:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --wall:#171a19; --mat:#222624; --ink:#e7e9e3; --muted:#9aa39d; --rule:#333936; --bronze:#d09a62; --shade:rgba(8,10,9,.95); color-scheme:dark}}
+:root[data-theme="dark"]{--wall:#171a19; --mat:#222624; --ink:#e7e9e3; --muted:#9aa39d; --rule:#333936; --bronze:#d09a62; --shade:rgba(8,10,9,.95); color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--wall);color:var(--ink);font:15px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1400px;margin:0 auto}
+header{padding-block:40px 20px;display:grid;gap:14px}
+.eyebrow{font:12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font:500 clamp(34px,6vw,64px)/1.02 var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1 em{color:var(--bronze)}
+.lede{max-width:62ch;color:var(--muted);margin:0}
+.controls{position:sticky;top:0;z-index:5;background:var(--wall);padding-block:12px;border-bottom:1px solid var(--rule);display:grid;gap:10px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input[type=search],select{font:inherit;color:var(--ink);background:var(--mat);border:1px solid var(--rule);border-radius:2px;padding:9px 12px}
+input[type=search]{flex:1 1 260px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,.card:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chip{font:13px/1 var(--body);white-space:nowrap;border:1px solid var(--rule);background:transparent;color:var(--ink);padding:8px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--wall);border-color:var(--ink)}
+.chip small{font-family:var(--mono);opacity:.65;margin-left:6px}
+.count{font:12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:28px 22px;padding-block:28px 60px}
+@media (max-width:480px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}}
+.card{all:unset;cursor:pointer;display:grid;gap:10px;min-width:0}
+.frame{aspect-ratio:4/5;max-width:100%;background:var(--mat);display:grid;place-items:center;padding:14px;box-shadow:0 1px 0 var(--rule),0 10px 24px -18px rgba(0,0,0,.45);transition:transform .25s ease}
+.card:hover .frame{transform:translateY(-3px)}
+.frame img{max-width:100%;max-height:100%;object-fit:contain;display:block;opacity:0;transition:opacity .4s}
+.frame img.on{opacity:1}
+.lbl{min-width:0}
+.lbl b{font:500 15px/1.25 var(--display);display:block;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lbl span{font-size:13px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sentinel{height:1px}
+.empty{padding:60px 0;color:var(--muted);text-align:center}
+/* viewing room */
+.room{position:fixed;inset:0;z-index:20;background:var(--shade);color:#eef0ea;display:grid;grid-template-rows:1fr auto;
+  padding:calc(env(safe-area-inset-top,0px) + 16px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px))}
+.stage{display:grid;place-items:center;min-height:0}
+.stage img{max-width:100%;max-height:calc(100vh - 200px);object-fit:contain;box-shadow:0 30px 60px -30px #000}
+.placard{max-width:900px;width:100%;margin:16px auto 0;display:flex;gap:16px;justify-content:space-between;align-items:end;flex-wrap:wrap}
+.placard h2{font:500 clamp(20px,3vw,28px)/1.15 var(--display);margin:0 0 4px;text-wrap:balance}
+.placard p{margin:0;color:#b9c0ba}
+.placard .meta{font:12px var(--mono);color:#8f9891;margin-top:6px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:13px var(--body);color:#eef0ea;background:transparent;border:1px solid #59605b;padding:9px 14px;border-radius:2px;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:#eef0ea}
+.x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);right:max(12px,env(safe-area-inset-right,0px))}
+footer{border-top:1px solid var(--rule);padding-block:20px 40px;font-size:13px;color:var(--muted)}
+footer a{color:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">National Gallery of Art · Open Data</div>
+    <h1>The open <em>collection</em>, hung on one wall</h1>
+    <p class="lede">Every open-access work with a published image in the Gallery's public dataset. Search by title or artist, filter by medium, and tap any work for a full view.</p>
+  </header>
+  <div class="controls">
+    <div class="row">
+      <input id="q" type="search" placeholder="Search title or artist — Vermeer, Cassatt, still life…" aria-label="Search title or artist">
+      <select id="sort" aria-label="Sort order">
+        <option value="curated">Paintings first</option>
+        <option value="old">Oldest first</option>
+        <option value="new">Newest first</option>
+        <option value="random">Shuffle</option>
+      </select>
+      <span class="count" id="count">Loading collection…</span>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Filter by classification"></div>
+  </div>
+  <main class="grid" id="grid" aria-live="polite"></main>
+  <div class="sentinel" id="sentinel"></div>
+  <footer>Data and images: <a href="https://github.com/NationalGalleryOfArt/opendata" target="_blank" rel="noopener">National Gallery of Art Open Data</a> (CC0). Images served by the Gallery's IIIF service. Not affiliated with the National Gallery of Art.</footer>
+</div>
+
+<div class="room" id="room" hidden role="dialog" aria-modal="true" aria-labelledby="rt">
+  <button class="btn x" id="close" aria-label="Close">Close ✕</button>
+  <div class="stage"><img id="big" alt=""></div>
+  <div class="placard">
+    <div><h2 id="rt"></h2><p id="ra"></p><div class="meta" id="rm"></div></div>
+    <div class="acts">
+      <button class="btn" id="prev">← Prev</button>
+      <button class="btn" id="next">Next →</button>
+      <a class="btn" id="full" target="_blank" rel="noopener">Full resolution</a>
+      <a class="btn" id="page" target="_blank" rel="noopener">On nga.gov</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const IIIF="https://api.nga.gov/iiif/";
+const $=s=>document.querySelector(s);
+let D, CL=[], view=[], shown=0, cls=-1, cur=-1;
+const PAGE=60;
+const thumb=u=>`${IIIF}${u}/full/!400,400/0/default.jpg`;
+const large=u=>`${IIIF}${u}/full/!1600,1600/0/default.jpg`;
+
+fetch("data.json").then(r=>r.json()).then(d=>{
+  D=d.rows; CL=d.classes;
+  D.forEach(r=>r.k=(r[1]+" "+r[2]).toLowerCase());
+  const counts=CL.map((_,i)=>0); D.forEach(r=>counts[r[4]]++);
+  const chips=$("#chips");
+  const mk=(label,i,n)=>{const b=document.createElement("button");b.className="chip";b.dataset.i=i;
+    b.setAttribute("aria-pressed",i===cls);b.innerHTML=`${label}<small>${n.toLocaleString()}</small>`;
+    b.onclick=()=>{cls=i;[...chips.children].forEach(c=>c.setAttribute("aria-pressed",+c.dataset.i===cls));apply()};chips.append(b)};
+  mk("All",-1,D.length);
+  CL.map((c,i)=>[c,i]).forEach(([c,i])=>mk(c,i,counts[i]));
+  apply();
+}).catch(()=>{$("#count").textContent="Couldn't load the collection data. Refresh to try again."});
+
+let t; $("#q").addEventListener("input",()=>{clearTimeout(t);t=setTimeout(apply,180)});
+$("#sort").addEventListener("change",apply);
+
+function apply(){
+  const q=$("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  view=D.filter(r=>(cls<0||r[4]===cls)&&q.every(w=>r.k.includes(w)));
+  const s=$("#sort").value;
+  if(s==="old") view.sort((a,b)=>(a[5]??9999)-(b[5]??9999));
+  else if(s==="new") view.sort((a,b)=>(b[5]??-9999)-(a[5]??-9999));
+  else if(s==="random") for(let i=view.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[view[i],view[j]]=[view[j],view[i]]}
+  $("#count").textContent=`${view.length.toLocaleString()} works`;
+  $("#grid").innerHTML=view.length?"":`<p class="empty">No works match that search. Try an artist's surname or clear the filter.</p>`;
+  shown=0; more(); window.scrollTo({top:Math.min(window.scrollY,$("header").offsetHeight)});
+}
+function more(){
+  const g=$("#grid"), frag=document.createDocumentFragment();
+  for(const [n,r] of view.slice(shown,shown+PAGE).entries()){
+    const i=shown+n, b=document.createElement("button");
+    b.className="card"; b.dataset.i=i;
+    b.innerHTML=`<div class="frame"><img loading="lazy" decoding="async" alt="${esc(r[1])}"></div><div class="lbl"><b>${esc(r[1])}</b><span>${esc(r[2]||"Unknown artist")}${r[3]?" · "+esc(r[3]):""}</span></div>`;
+    const im=b.querySelector("img"); im.onload=()=>im.classList.add("on"); im.src=thumb(r[0]);
+    b.onclick=()=>openRoom(i); frag.append(b);
+  }
+  g.append(frag); shown=Math.min(shown+PAGE,view.length);
+}
+new IntersectionObserver(e=>{if(e[0].isIntersecting&&D&&shown<view.length)more()},{rootMargin:"1200px"}).observe($("#sentinel"));
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function openRoom(i){
+  cur=i; const r=view[i]; const big=$("#big");
+  big.src=thumb(r[0]); big.alt=r[1];
+  const L=new Image(); L.onload=()=>{if(cur===i)big.src=L.src}; L.src=large(r[0]);
+  $("#rt").textContent=r[1]; $("#ra").textContent=[r[2]||"Unknown artist",r[3]].filter(Boolean).join(", ");
+  $("#rm").textContent=`${CL[r[4]]} · object ${r[8]}${r[6]?` · ${r[6]}×${r[7]} px`:""}`;
+  $("#full").href=`${IIIF}${r[0]}/full/max/0/default.jpg`;
+  $("#page").href=`https://www.nga.gov/collection/art-object-page.${r[8]}.html`;
+  $("#room").hidden=false; document.body.style.overflow="hidden"; $("#close").focus();
+}
+function closeRoom(){$("#room").hidden=true;document.body.style.overflow="";const c=document.querySelector(`.card[data-i="${cur}"]`);c&&c.focus()}
+$("#close").onclick=closeRoom;
+$("#prev").onclick=()=>cur>0&&openRoom(cur-1);
+$("#next").onclick=()=>{if(cur<view.length-1){if(cur+1>=shown)more();openRoom(cur+1)}};
+$("#room").addEventListener("click",e=>{if(e.target.id==="room"||e.target.classList.contains("stage"))closeRoom()});
+document.addEventListener("keydown",e=>{if($("#room").hidden)return;
+  if(e.key==="Escape")closeRoom(); if(e.key==="ArrowLeft")$("#prev").click(); if(e.key==="ArrowRight")$("#next").click()});
+</script>
+</body>
+</html>
